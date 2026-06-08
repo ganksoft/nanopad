@@ -58,7 +58,7 @@ static void UpdateTitle();
 static void UpdateStatusBar();
 static void StopWatchingCurrentFile();
 static void StartWatchingCurrentFile();
-static bool LoadFileIntoEditor(const std::wstring &path, const wchar_t *failureMessage);
+static bool LoadFileIntoEditor(const std::wstring &path);
 static void HandleWatchedFileChange();
 static bool PromptSave();
 static void DoNew();
@@ -306,16 +306,12 @@ static void StartWatchingCurrentFile()
     }
 }
 
-static bool LoadFileIntoEditor(const std::wstring &path, const wchar_t *failureMessage)
+static bool LoadFileIntoEditor(const std::wstring &path)
 {
     std::wstring text;
     FileInfo info;
     if(!FileIO::ReadFile(path, text, info))
-    {
-        if(failureMessage)
-            CenteredMessageBox(g_hwndMain, failureMessage, APP_NAME, MB_OK | MB_ICONERROR);
         return false;
-    }
 
     g_fileInfo = info;
     g_editor.SetText(text.c_str());
@@ -360,7 +356,9 @@ static void HandleWatchedFileChange()
             return;
     }
 
-    LoadFileIntoEditor(g_fileInfo.filePath, L"Failed to reload the file after it changed on disk.");
+    if(!LoadFileIntoEditor(g_fileInfo.filePath))
+        CenteredMessageBox(g_hwndMain, L"Failed to reload the file after it changed on disk.", APP_NAME,
+                           MB_OK | MB_ICONERROR);
 }
 
 bool PromptSave()
@@ -442,7 +440,8 @@ void DoOpen(const std::wstring &path)
         return;
     }
 
-    LoadFileIntoEditor(filePath, L"Failed to open file.");
+    if(!LoadFileIntoEditor(filePath))
+        CenteredMessageBox(g_hwndMain, L"Failed to open file.", APP_NAME, MB_OK | MB_ICONERROR);
 }
 
 void DoSave()
