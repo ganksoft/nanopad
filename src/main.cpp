@@ -519,6 +519,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             g_statusBar.SetUpdateAvailable();
             return 0;
         }
+        case Editor::WM_APP_ZOOM:
+        {
+            int notches = (int)(short)wParam / WHEEL_DELTA;
+            if(notches != 0 && g_fontManager.AdjustZoom(notches))
+            {
+                g_editor.SetFont(g_fontManager.GetFont());
+                g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
+            }
+            return 0;
+        }
         case WM_CREATE:
         {
             // Capture initial DPI for the window's monitor
@@ -533,6 +543,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             g_findReplace.Initialize(hwnd, g_editor.GetHwnd());
 
             g_editor.SetFont(g_fontManager.GetFont());
+            g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
             g_theme.Initialize();
 
             // Apply dark mode to window immediately (before ShowWindow) to prevent white flash
@@ -784,6 +795,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     if(g_fontManager.ShowChooseFont(hwnd))
                     {
                         g_editor.SetFont(g_fontManager.GetFont());
+                        g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
                         g_fontManager.SaveToSettings(g_settings.font);
                         g_settings.SaveFont();
                     }
@@ -791,6 +803,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 }
 
                 // View
+                case IDM_VIEW_ZOOMIN:
+                case IDM_VIEW_ZOOMOUT:
+                {
+                    if(g_fontManager.AdjustZoom(wmId == IDM_VIEW_ZOOMIN ? 1 : -1))
+                    {
+                        g_editor.SetFont(g_fontManager.GetFont());
+                        g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
+                    }
+                    break;
+                }
+                case IDM_VIEW_ZOOMRESET:
+                {
+                    if(g_fontManager.ResetZoom())
+                    {
+                        g_editor.SetFont(g_fontManager.GetFont());
+                        g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
+                    }
+                    break;
+                }
                 case IDM_VIEW_STATUSBAR:
                 {
                     bool visible = !g_statusBar.IsVisible();

@@ -22,13 +22,31 @@ FontManager::~FontManager()
         DeleteObject(m_hFont);
 }
 
+static constexpr int ZOOM_MIN  = 10;
+static constexpr int ZOOM_MAX  = 500;
+static constexpr int ZOOM_STEP = 10;
+
+void FontManager::RecreateFont()
+{
+    if(m_hFont)
+    {
+        DeleteObject(m_hFont);
+        m_hFont = nullptr;
+    }
+
+    LOGFONTW lf = m_logFont;
+    lf.lfHeight = MulDiv(m_logFont.lfHeight, m_zoomPercent, 100);
+    if(lf.lfHeight == 0)
+        lf.lfHeight = (m_logFont.lfHeight < 0) ? -1 : 1;
+
+    m_hFont       = CreateFontIndirectW(&lf);
+    m_fontCreated = true;
+}
+
 void FontManager::EnsureFont()
 {
     if(!m_fontCreated)
-    {
-        m_hFont       = CreateFontIndirectW(&m_logFont);
-        m_fontCreated = true;
-    }
+        RecreateFont();
 }
 
 HFONT FontManager::GetFont()
@@ -48,11 +66,9 @@ bool FontManager::ShowChooseFont(HWND hwndOwner)
     if(!ChooseFontW(&cf))
         return false;
 
-    if(m_hFont)
-        DeleteObject(m_hFont);
-
-    m_hFont       = CreateFontIndirectW(&m_logFont);
-    m_fontCreated = true;
+    // An explicit font choice resets any zoom applied via Ctrl+wheel.
+    m_zoomPercent = 100;
+    RecreateFont();
     return m_hFont != nullptr;
 }
 
@@ -72,12 +88,31 @@ void FontManager::OnDpiChanged(int newDpi, int oldDpi)
     if(oldDpi == 0)
         oldDpi = 96;
     m_logFont.lfHeight = MulDiv(m_logFont.lfHeight, newDpi, oldDpi);
+    RecreateFont();
+}
 
-    if(m_hFont)
-    {
-        DeleteObject(m_hFont);
-        m_hFont = nullptr;
-    }
-    m_hFont       = CreateFontIndirectW(&m_logFont);
-    m_fontCreated = true;
+bool FontManager::AdjustZoom(int notches)
+{
+    int newZoom = m_zoomPercent + notches * ZOOM_STEP;
+    if(newZoom < ZOOM_MIN)
+        newZoom = ZOOM_MIN;
+    if(newZoom > ZOOM_MAX)
+        newZoom = ZOOM_MAX;
+
+    if(newZoom == m_zoomPercent)
+        return false;
+
+    m_zoomPercent = newZoom;
+    RecreateFont();
+    return true;
+}
+
+bool FontManager::ResetZoom()
+{
+    if(m_zoomPercent == 100)
+        return false;
+
+    m_zoomPercent = 100;
+    RecreateFont();
+    return true;
 }

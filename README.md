@@ -21,6 +21,7 @@ Read more about my experiences with AI and this project on [my blog](https://bri
 - **File I/O** — Open, Save, Save As with encoding detection (UTF-8, UTF-8 BOM, UTF-16 LE/BE, ANSI)
 - **Dark / Light mode** — Follows Windows system theme automatically, with manual override; fully themed title bar, menu bar, scrollbars, and status bar
 - **Font selection** — ChooseFont dialog, DPI-aware, persisted across sessions (default: Consolas 11pt)
+- **Zoom** — Ctrl+mouse wheel, View menu (Zoom In/Out, Restore Default Zoom), or Ctrl+Plus / Ctrl+Minus / Ctrl+0
 - **Find & Replace** — Find Next/Previous, Match Case, Replace All
 - **Print** — With headers, footers, and page numbers
 - **Status bar** — Line/column, character count, encoding, line endings

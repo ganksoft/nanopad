@@ -57,8 +57,15 @@ class Editor
         return m_hwndEdit;
     }
 
+    // Posted to the parent window when the user holds Ctrl and turns the mouse
+    // wheel. wParam carries the signed wheel delta (multiples of WHEEL_DELTA).
+    static constexpr UINT WM_APP_ZOOM = WM_APP + 3;
+
   private:
     void RecreateControl();
+
+    static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass,
+                                             DWORD_PTR dwRefData);
 
     HWND m_hwndParent     = nullptr;
     HWND m_hwndEdit       = nullptr;

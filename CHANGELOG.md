@@ -4,6 +4,13 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [1.1.0] - 2026-06-21
+
+### Added
+- Zoom the text in and out with Ctrl+mouse wheel.
+- View menu Zoom In, Zoom Out, and Restore Default Zoom commands with Ctrl+Plus, Ctrl+Minus, and Ctrl+0 shortcuts.
+- Current zoom percentage shown in the status bar.
+
 ## [1.0.9] - 2026-04-17
 
 ### Added

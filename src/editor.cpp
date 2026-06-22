@@ -1,5 +1,6 @@
 #include "editor.h"
 #include "resource.h"
+#include <commctrl.h>
 
 Editor::Editor()  = default;
 Editor::~Editor() = default;
@@ -24,7 +25,27 @@ bool Editor::Create(HWND parent, HINSTANCE hInst)
     // Remove the default text limit (default is 32KB for multiline EDIT)
     SendMessage(m_hwndEdit, EM_SETLIMITTEXT, 0, 0);
 
+    SetWindowSubclass(m_hwndEdit, EditSubclassProc, 0, (DWORD_PTR)this);
+
     return true;
+}
+
+// Intercept Ctrl+mouse wheel for zoom; let the standard control handle the rest.
+LRESULT CALLBACK Editor::EditSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR,
+                                          DWORD_PTR dwRefData)
+{
+    if(msg == WM_MOUSEWHEEL && (GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL))
+    {
+        Editor *self = (Editor *)dwRefData;
+        int delta    = GET_WHEEL_DELTA_WPARAM(wParam);
+        PostMessage(self->m_hwndParent, WM_APP_ZOOM, (WPARAM)delta, 0);
+        return 0;
+    }
+
+    if(msg == WM_NCDESTROY)
+        RemoveWindowSubclass(hwnd, EditSubclassProc, 0);
+
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
 void Editor::Resize(int x, int y, int cx, int cy)

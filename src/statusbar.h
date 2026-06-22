@@ -11,6 +11,7 @@ class StatusBar
     bool Create(HWND parent, HINSTANCE hInst);
     void Resize();
     void Update(int line, int col, int charCount, int lineCount, Encoding enc, LineEnding le);
+    void SetZoom(int percent);
     void SetVisible(bool visible);
     bool IsVisible() const;
     HWND GetHwnd() const
@@ -34,7 +35,7 @@ class StatusBar
 
     HWND m_hwnd               = nullptr;
     bool m_visible            = true;
-    wchar_t m_partText[6][64] = {};
+    wchar_t m_partText[7][64] = {};
     COLORREF m_bgColor        = 0;
     COLORREF m_fgColor        = RGB(0, 0, 0);
     bool m_darkMode           = false;

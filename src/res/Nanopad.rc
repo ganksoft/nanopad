@@ -78,6 +78,10 @@ BEGIN
     BEGIN
         MENUITEM "&Status Bar",                 IDM_VIEW_STATUSBAR
         MENUITEM SEPARATOR
+        MENUITEM "Zoom &In\tCtrl++",            IDM_VIEW_ZOOMIN
+        MENUITEM "Zoom &Out\tCtrl+-",           IDM_VIEW_ZOOMOUT
+        MENUITEM "&Restore Default Zoom\tCtrl+0", IDM_VIEW_ZOOMRESET
+        MENUITEM SEPARATOR
         MENUITEM "&Dark Mode",                  IDM_VIEW_DARK
         MENUITEM "&Light Mode",                 IDM_VIEW_LIGHT
         MENUITEM "Use &System Setting",         IDM_VIEW_SYSTEM
@@ -114,6 +118,12 @@ BEGIN
     "H",    IDM_EDIT_REPLACE,   VIRTKEY, CONTROL
     "G",    IDM_EDIT_GOTO,      VIRTKEY, CONTROL
     "W",    IDM_FILE_EXIT,      VIRTKEY, CONTROL, SHIFT
+    VK_OEM_PLUS,  IDM_VIEW_ZOOMIN,    VIRTKEY, CONTROL
+    VK_ADD,       IDM_VIEW_ZOOMIN,    VIRTKEY, CONTROL
+    VK_OEM_MINUS, IDM_VIEW_ZOOMOUT,   VIRTKEY, CONTROL
+    VK_SUBTRACT,  IDM_VIEW_ZOOMOUT,   VIRTKEY, CONTROL
+    "0",          IDM_VIEW_ZOOMRESET, VIRTKEY, CONTROL
+    VK_NUMPAD0,   IDM_VIEW_ZOOMRESET, VIRTKEY, CONTROL
 END
 
 // Go To Line Dialog

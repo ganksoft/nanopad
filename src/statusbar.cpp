@@ -4,7 +4,7 @@
 #include <uxtheme.h>
 #include <cstdio>
 
-static constexpr int BASE_PARTS[] = {200, 380, 490, 560};
+static constexpr int BASE_PARTS[] = {200, 380, 490, 560, 660};
 static constexpr int NUM_BASE     = _countof(BASE_PARTS);
 
 StatusBar::StatusBar() = default;
@@ -63,6 +63,19 @@ void StatusBar::Update(int line, int col, int charCount, int lineCount, Encoding
         for(int i = 0; i < NUM_BASE; i++)
             SendMessage(m_hwnd, SB_SETTEXTW, i, (LPARAM)m_partText[i]);
     }
+}
+
+void StatusBar::SetZoom(int percent)
+{
+    swprintf_s(m_partText[4], L"  Zoom: %d%%", percent);
+
+    if(!m_hwnd || !m_visible)
+        return;
+
+    if(m_darkMode)
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+    else
+        SendMessage(m_hwnd, SB_SETTEXTW, 4, (LPARAM)m_partText[4]);
 }
 
 void StatusBar::SetVisible(bool visible)
@@ -135,7 +148,7 @@ void StatusBar::SetDpi(int dpi)
 void StatusBar::SetUpdateAvailable()
 {
     m_updateAvail = true;
-    wcscpy_s(m_partText[5], L"Update available");
+    wcscpy_s(m_partText[6], L"Update available");
     CreateLinkFont();
     UpdateParts();
     if(m_hwnd)
@@ -147,7 +160,7 @@ bool StatusBar::HandleClick(POINT pt)
     if(!m_updateAvail || !m_hwnd)
         return false;
 
-    int edges[6] = {};
+    int edges[7] = {};
     SendMessage(m_hwnd, SB_GETPARTS, NUM_BASE + 2, (LPARAM)edges);
 
     return pt.x >= edges[NUM_BASE];
@@ -165,7 +178,7 @@ void StatusBar::UpdateParts()
         int grip     = GetSystemMetrics(SM_CXHSCROLL);
         int linkEdge = rc.right - m_linkPartWidth - grip;
 
-        int parts[6];
+        int parts[7];
         for(int i = 0; i < NUM_BASE; i++)
             parts[i] = MulDiv(BASE_PARTS[i], m_dpi, 96);
         parts[NUM_BASE]     = linkEdge;
@@ -174,7 +187,7 @@ void StatusBar::UpdateParts()
     }
     else
     {
-        int parts[5];
+        int parts[6];
         for(int i = 0; i < NUM_BASE; i++)
             parts[i] = MulDiv(BASE_PARTS[i], m_dpi, 96);
         parts[NUM_BASE] = -1;
@@ -206,7 +219,7 @@ void StatusBar::CreateLinkFont()
     HDC hdc    = GetDC(m_hwnd);
     HFONT hOld = (HFONT)SelectObject(hdc, m_linkFont);
     SIZE sz    = {};
-    GetTextExtentPoint32W(hdc, m_partText[5], (int)wcslen(m_partText[5]), &sz);
+    GetTextExtentPoint32W(hdc, m_partText[6], (int)wcslen(m_partText[6]), &sz);
     m_linkPartWidth = sz.cx + MulDiv(16, m_dpi, 96);
     SelectObject(hdc, hOld);
     ReleaseDC(m_hwnd, hdc);
@@ -221,7 +234,7 @@ void StatusBar::DrawLinkPart(HDC hdc, const RECT &rc)
     SetBkMode(hdc, TRANSPARENT);
 
     RECT rcText = rc;
-    DrawTextW(hdc, m_partText[5], -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    DrawTextW(hdc, m_partText[6], -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     if(hOldFont)
         SelectObject(hdc, hOldFont);
@@ -254,7 +267,7 @@ LRESULT CALLBACK StatusBar::SubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             FillRect(hdc, &rc, sb->m_cachedBgBrush);
 
         int numParts = sb->m_updateAvail ? NUM_BASE + 2 : NUM_BASE + 1;
-        int parts[6] = {};
+        int parts[7] = {};
         SendMessage(hwnd, SB_GETPARTS, numParts, (LPARAM)parts);
 
         HFONT hFont = (HFONT)SendMessage(hwnd, WM_GETFONT, 0, 0);
