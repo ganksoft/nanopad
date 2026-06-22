@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2022
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Extract version from tag
       id: version
@@ -42,7 +42,7 @@ jobs:
         Write-Host "Stamped version.h: $version ($major.$minor.$patch)"
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v2
+      uses: microsoft/setup-msbuild@v3
 
     - name: Build Release x64
       run: msbuild Nanopad.sln /p:Configuration=Release /p:Platform=x64 /nologo /v:minimal
@@ -88,7 +88,7 @@ jobs:
         echo "ARM64_ZIP_HASH=$armZipHash" >> $env:GITHUB_OUTPUT
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           ${{ steps.dist.outputs.X64_ZIP }}
