@@ -80,6 +80,8 @@ Output: `bin\Release\nanopad.exe`
 | F3 / Shift+F3 | Find Next / Previous |
 | Ctrl+H | Replace |
 | Ctrl+G | Go To Line |
+| Ctrl+Plus / Ctrl+Minus | Zoom In / Out |
+| Ctrl+0 | Restore Default Zoom |
 | Ctrl+Shift+W | Close Window |
 
 ## Settings
