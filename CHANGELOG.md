@@ -4,7 +4,7 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
-## [Unreleased]
+## [1.2.0] - 2026-06-25
 
 ### Added
 - Crash and shutdown recovery: unsaved text is autosaved and automatically restored after a crash, power loss, or Windows Update restart -- no prompt. Registers with Windows so it is relaunched automatically after an update reboot. Each session is saved to its own recovery file, and when multiple sessions are recovered each reopens in its own window.
