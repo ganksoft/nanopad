@@ -27,19 +27,6 @@ class Settings
     void Load();
     void Save();
 
-    void SaveFont()
-    {
-        Save();
-    }
-    void SaveThemeMode()
-    {
-        Save();
-    }
-    void SaveWindowPlacement()
-    {
-        Save();
-    }
-
   private:
     void ParseLine(const wchar_t *line);
     static int ParseInt(const wchar_t *value, int def);

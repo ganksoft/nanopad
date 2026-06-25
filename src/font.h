@@ -30,7 +30,6 @@ class FontManager
     }
 
   private:
-    void EnsureFont();
     void RecreateFont();
 
     HFONT m_hFont      = nullptr;

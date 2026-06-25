@@ -43,15 +43,10 @@ void FontManager::RecreateFont()
     m_fontCreated = true;
 }
 
-void FontManager::EnsureFont()
+HFONT FontManager::GetFont()
 {
     if(!m_fontCreated)
         RecreateFont();
-}
-
-HFONT FontManager::GetFont()
-{
-    EnsureFont();
     return m_hFont;
 }
 

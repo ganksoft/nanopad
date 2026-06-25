@@ -372,11 +372,6 @@ static bool SetRegString(HKEY hParent, const wchar_t *subKey, const wchar_t *val
     return true;
 }
 
-static void DeleteRegTree(HKEY hParent, const wchar_t *subKey)
-{
-    RegDeleteTreeW(hParent, subKey);
-}
-
 bool NotepadReplace::RegisterOpenWith()
 {
     wchar_t exePath[MAX_PATH];
@@ -437,10 +432,10 @@ bool NotepadReplace::UnregisterOpenWith()
     // Remove ProgId
     wchar_t progIdKey[256];
     swprintf_s(progIdKey, L"Software\\Classes\\%s", PROGID);
-    DeleteRegTree(HKEY_CURRENT_USER, progIdKey);
+    RegDeleteTreeW(HKEY_CURRENT_USER, progIdKey);
 
     // Remove app registration
-    DeleteRegTree(HKEY_CURRENT_USER, L"Software\\Classes\\Applications\\nanopad.exe");
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Applications\\nanopad.exe");
 
     // Remove from each extension's OpenWithProgids
     for(const wchar_t *ext : TEXT_EXTENSIONS)
@@ -505,7 +500,7 @@ bool NotepadReplace::RegisterContextMenu()
 
 bool NotepadReplace::UnregisterContextMenu()
 {
-    DeleteRegTree(HKEY_CURRENT_USER, CTX_SHELL_KEY);
+    RegDeleteTreeW(HKEY_CURRENT_USER, CTX_SHELL_KEY);
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return true;
 }

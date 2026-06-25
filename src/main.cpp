@@ -874,7 +874,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         g_editor.SetFont(g_fontManager.GetFont());
                         g_statusBar.SetZoom(g_fontManager.GetZoomPercent());
                         g_fontManager.SaveToSettings(g_settings.font);
-                        g_settings.SaveFont();
+                        g_settings.Save();
                     }
                     break;
                 }
@@ -927,7 +927,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
                     InvalidateRect(hwnd, nullptr, TRUE);
                     g_theme.SaveToSettings(g_settings.themeMode);
-                    g_settings.SaveThemeMode();
+                    g_settings.Save();
                     break;
                 }
 
