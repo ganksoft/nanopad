@@ -41,9 +41,6 @@ class Settings
     }
 
   private:
-    wchar_t m_iniPath[MAX_PATH] = {};
-
-    void ResolveIniPath();
     void ParseLine(const wchar_t *line);
     static int ParseInt(const wchar_t *value, int def);
 };

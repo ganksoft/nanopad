@@ -4,6 +4,17 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+- Crash and shutdown recovery: unsaved text is autosaved and automatically restored after a crash, power loss, or Windows Update restart -- no prompt. Registers with Windows so it is relaunched automatically after an update reboot. Each session is saved to its own recovery file, and when multiple sessions are recovered each reopens in its own window.
+
+### Changed
+- Replace Notepad / Restore Notepad no longer show a confirmation dialog before the UAC prompt -- the UAC prompt is the only gate. Declining UAC cancels silently instead of showing an error.
+
+### Fixed
+- Replace Notepad now reliably remembers the original Notepad setting so Restore works even after Nanopad is closed and reopened.
+
 ## [1.1.0] - 2026-06-21
 
 ### Added

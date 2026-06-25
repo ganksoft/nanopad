@@ -28,6 +28,7 @@ Read more about my experiences with AI and this project on [my blog](https://bri
 - **Word wrap** — Toggle via Format menu
 - **Drag & drop** — Drop files onto the window to open
 - **External file reload** — Reloads when the open file changes on disk; prompts first if you have unsaved edits
+- **Crash & shutdown recovery** — Autosaves unsaved text and offers to restore it after a crash, power loss, or a Windows Update restart; registers for automatic restart so Windows relaunches Nanopad after an update reboot
 - **Go To Line** — Ctrl+G
 - **Large file support** — Memory-mapped I/O for files >1MB
 - **Per-monitor DPI** — Font, menu bar, and status bar scale when dragging between monitors
@@ -91,6 +92,8 @@ Stored in `nanopad.ini` next to the executable (portable — no registry writes)
 - Theme mode (System / Light / Dark)
 - Window position, size, and state (normal/maximized)
 - Original Notepad debugger value (for safe restore after Replace Notepad)
+
+Unsaved text is autosaved to a transient per-instance `nanopad-recovery-<pid>.recovery` file next to the executable. It is written on shutdown and periodically while editing, then deleted on a clean exit; if it survives (crash, power loss, or update restart) Nanopad restores it automatically on the next launch -- no prompt. Each running instance uses its own file, and when several sessions are recovered each is reopened in its own window.
 
 ## System Integration
 

@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "notepad_replace.h"
 #include "update.h"
+#include "recovery.h"
 #include "version.h"
 #include "msgbox.h"
 
@@ -38,9 +39,21 @@ static constexpr UINT_PTR TIMER_STATUSBAR = 1;
 static constexpr UINT TIMER_STATUSBAR_MS  = 100;
 static constexpr UINT_PTR TIMER_FILEWATCH = 2;
 static constexpr UINT TIMER_FILEWATCH_MS  = 250;
+static constexpr UINT_PTR TIMER_RECOVERY  = 3;
+static constexpr UINT TIMER_RECOVERY_MS   = 10000;
 static constexpr UINT WM_DEFERRED_THEME   = WM_APP + 1;
 static int g_currentDpi                   = 96;
 static HANDLE g_hFileWatch                = INVALID_HANDLE_VALUE;
+
+// Recovery launch state, set from the command line before the window is created.
+// g_recoveryRelaunch: this instance should restore an orphaned session into its
+//   own window (Windows relaunch via /restored, or a /recover child we spawned).
+// g_recoverySpawn: this instance exists only to recover (/recover); if there is
+//   nothing left to claim it should exit quietly instead of showing a window.
+// g_recoveryClaimed: set once a session has been restored into this window.
+static bool g_recoveryRelaunch = false;
+static bool g_recoverySpawn    = false;
+static bool g_recoveryClaimed  = false;
 
 struct FileStamp
 {
@@ -95,15 +108,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
 
         if(cmd == L"/register")
         {
-            NotepadReplace::Replace(nullptr, g_settings);
+            NotepadReplace::Replace(nullptr, g_settings, false);
             return 0;
         }
         if(cmd == L"/unregister")
         {
-            NotepadReplace::Restore(nullptr, g_settings);
+            NotepadReplace::Restore(nullptr, g_settings, false);
             return 0;
         }
+        if(cmd == L"/recover")
+        {
+            // Spawned by another instance solely to restore the next orphaned
+            // session into its own window.
+            g_recoveryRelaunch = true;
+            g_recoverySpawn    = true;
+        }
     }
+
+    // A Windows-initiated restart relaunches us with /restored; treat it as a
+    // recovery relaunch so it restores a session into this window.
+    if(Recovery::LaunchedByRestart(pCmdLine))
+        g_recoveryRelaunch = true;
 
     WNDCLASSEXW wc   = {};
     wc.cbSize        = sizeof(wc);
@@ -118,11 +143,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
     wc.hIconSm       = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_NANOPAD));
     RegisterClassExW(&wc);
 
+    // Ask Windows to relaunch us after an update reboot, crash, or hang so we
+    // can offer to recover unsaved text.
+    Recovery::RegisterForRestart();
+
     g_hwndMain = CreateWindowExW(WS_EX_ACCEPTFILES, WINDOW_CLASS, APP_NAME, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
                                  CW_USEDEFAULT, 1200, 850, nullptr, nullptr, hInstance, nullptr);
 
     if(!g_hwndMain)
         return 1;
+
+    // A dedicated /recover spawn that found nothing left to claim (it lost a
+    // race to another instance) should exit quietly without showing a window.
+    if(g_recoverySpawn && !g_recoveryClaimed)
+    {
+        DestroyWindow(g_hwndMain);
+        return 0;
+    }
 
     // Restore saved window position
     if(g_settings.windowPlacementLoaded)
@@ -137,8 +174,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
 
     UpdateWindow(g_hwndMain);
 
-    // Open file from command line
-    if(pCmdLine && pCmdLine[0])
+    // Open file from command line. A Windows-initiated restart (/restored) and a
+    // recovery spawn (/recover) carry our own switches, not a file path, so skip
+    // command-line handling for them.
+    if(pCmdLine && pCmdLine[0] && !g_recoveryRelaunch && !Recovery::LaunchedByRestart(pCmdLine))
     {
         std::wstring path = pCmdLine;
 
@@ -296,9 +335,9 @@ static void StartWatchingCurrentFile()
     g_lastObservedFileStamp = g_loadedFileStamp;
 
     std::wstring directoryPath = GetDirectoryPath(g_fileInfo.filePath);
-    g_hFileWatch               = FindFirstChangeNotificationW(directoryPath.c_str(), FALSE,
-                                                              FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE |
-                                                                  FILE_NOTIFY_CHANGE_SIZE);
+    g_hFileWatch = FindFirstChangeNotificationW(directoryPath.c_str(), FALSE,
+                                                FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                                    FILE_NOTIFY_CHANGE_SIZE);
     if(g_hFileWatch == INVALID_HANDLE_VALUE)
     {
         g_loadedFileStamp       = {};
@@ -555,7 +594,38 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
             SetTimer(hwnd, TIMER_STATUSBAR, TIMER_STATUSBAR_MS, nullptr);
             SetTimer(hwnd, TIMER_FILEWATCH, TIMER_FILEWATCH_MS, nullptr);
+            SetTimer(hwnd, TIMER_RECOVERY, TIMER_RECOVERY_MS, nullptr);
             UpdateTitle();
+
+            // Crash / shutdown recovery. Each instance owns a per-pid snapshot,
+            // so claiming only ever takes a session orphaned by a dead process,
+            // never the live buffer of another running Nanopad.
+            if(g_recoveryRelaunch)
+            {
+                // This instance exists to restore a session: load one orphan
+                // into its own window (silently -- the recovered text is marked
+                // dirty so the user stays in control), then hand off the rest.
+                std::wstring recoverText;
+                FileInfo recoverInfo;
+                if(Recovery::ClaimOrphan(recoverText, recoverInfo))
+                {
+                    g_editor.SetText(recoverText.c_str());
+                    g_fileInfo = recoverInfo;
+                    g_editor.SetDirty(true);
+                    UpdateTitle();
+                    g_recoveryClaimed = true;
+                }
+                if(Recovery::HasOrphans())
+                    Recovery::LaunchRecoveryInstance();
+            }
+            else if(Recovery::HasOrphans())
+            {
+                // Normal launch with orphaned sessions present (e.g. after a
+                // crash or power loss where Windows did not relaunch us). Restore
+                // them into their own separate windows rather than hijacking this
+                // one, which the user opened for their own purpose.
+                Recovery::LaunchRecoveryInstance();
+            }
 
             // Defer menu checks and status bar styling
             PostMessage(hwnd, WM_DEFERRED_THEME, 0, 0);
@@ -613,6 +683,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             else if(wParam == TIMER_FILEWATCH)
             {
                 HandleWatchedFileChange();
+            }
+            else if(wParam == TIMER_RECOVERY)
+            {
+                if(g_editor.IsDirty())
+                    Recovery::Save(g_editor.GetText(), g_fileInfo);
+                else
+                    Recovery::Clear();
             }
             return 0;
 
@@ -927,6 +1004,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return 0;
         }
 
+        case WM_QUERYENDSESSION:
+            // Windows is shutting down / restarting / logging off. Do not block
+            // with a modal prompt -- under fast shutdown we may be killed within
+            // seconds regardless. Silently snapshot any unsaved text so we can
+            // offer to recover it on next launch, then allow the session to end.
+            if(g_editor.IsDirty())
+                Recovery::Save(g_editor.GetText(), g_fileInfo);
+            return TRUE;
+
+        case WM_ENDSESSION:
+            // The session really is ending -- persist settings while we still can.
+            if(wParam)
+            {
+                g_fontManager.SaveToSettings(g_settings.font);
+                g_theme.SaveToSettings(g_settings.themeMode);
+                SaveWindowPlacement(hwnd);
+                g_settings.Save();
+            }
+            return 0;
+
         case WM_CLOSE:
             if(!PromptSave())
                 return 0;
@@ -935,12 +1032,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             g_theme.SaveToSettings(g_settings.themeMode);
             SaveWindowPlacement(hwnd);
             g_settings.Save();
+            // Clean exit -- discard any autosaved recovery snapshot.
+            Recovery::Clear();
             DestroyWindow(hwnd);
             return 0;
 
         case WM_DESTROY:
             KillTimer(hwnd, TIMER_STATUSBAR);
             KillTimer(hwnd, TIMER_FILEWATCH);
+            KillTimer(hwnd, TIMER_RECOVERY);
             StopWatchingCurrentFile();
             PostQuitMessage(0);
             return 0;

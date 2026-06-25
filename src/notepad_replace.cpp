@@ -82,62 +82,67 @@ bool NotepadReplace::IsReplacing()
     return result;
 }
 
-bool NotepadReplace::Replace(HWND hwndOwner, Settings &settings)
+bool NotepadReplace::Replace(HWND hwndOwner, Settings &settings, bool interactive)
 {
-    int result = CenteredMessageBox(hwndOwner,
-                                    L"This will redirect all notepad.exe launches to Nanopad.\n\n"
-                                    L"Requires administrator privileges.\n\n"
-                                    L"Continue?",
-                                    L"Replace Notepad", MB_YESNO | MB_ICONQUESTION);
-    if(result != IDYES)
-        return false;
+    // No up-front confirmation: the user reached this through the explicit
+    // "Replace Notepad" menu item, and the UAC prompt is the real gate.
 
-    // Disable Store Notepad's App Paths redirect (HKCU, no admin needed)
-    // Back up the current value and rename the key to disable it
-    {
-        static constexpr const wchar_t *APP_PATHS_KEY =
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe";
-        static constexpr const wchar_t *APP_PATHS_BAK =
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe.nanopad-backup";
-
-        HKEY hSrc;
-        if(RegOpenKeyExW(HKEY_CURRENT_USER, APP_PATHS_KEY, 0, KEY_READ, &hSrc) == ERROR_SUCCESS)
-        {
-            // Read current default value
-            wchar_t appPath[MAX_PATH] = {};
-            DWORD size                = sizeof(appPath);
-            RegQueryValueExW(hSrc, nullptr, nullptr, nullptr, (BYTE *)appPath, &size);
-            RegCloseKey(hSrc);
-
-            // Save to backup key
-            HKEY hBak;
-            if(RegCreateKeyExW(HKEY_CURRENT_USER, APP_PATHS_BAK, 0, nullptr, 0, KEY_WRITE, nullptr, &hBak, nullptr) ==
-               ERROR_SUCCESS)
-            {
-                RegSetValueExW(hBak, nullptr, 0, REG_SZ, (const BYTE *)appPath,
-                               (DWORD)((wcslen(appPath) + 1) * sizeof(wchar_t)));
-                RegCloseKey(hBak);
-            }
-
-            // Delete the original key to disable Store Notepad
-            RegDeleteTreeW(HKEY_CURRENT_USER, APP_PATHS_KEY);
-        }
-    }
-
-    // If not elevated, relaunch with /register
+    // The HKCU work and the one-time elevation request belong to the unelevated,
+    // interactive process -- only it is guaranteed to target the logged-in user's
+    // own registry hive. The elevated worker (relaunched with /register) does the
+    // HKLM work below and nothing else: the user already confirmed, so it must
+    // not prompt again.
     if(!IsElevated())
     {
+        // Disable Store Notepad's App Paths redirect (HKCU, no admin needed)
+        // Back up the current value and rename the key to disable it
+        {
+            static constexpr const wchar_t *APP_PATHS_KEY =
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe";
+            static constexpr const wchar_t *APP_PATHS_BAK =
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe.nanopad-backup";
+
+            HKEY hSrc;
+            if(RegOpenKeyExW(HKEY_CURRENT_USER, APP_PATHS_KEY, 0, KEY_READ, &hSrc) == ERROR_SUCCESS)
+            {
+                // Read current default value
+                wchar_t appPath[MAX_PATH] = {};
+                DWORD size                = sizeof(appPath);
+                RegQueryValueExW(hSrc, nullptr, nullptr, nullptr, (BYTE *)appPath, &size);
+                RegCloseKey(hSrc);
+
+                // Save to backup key
+                HKEY hBak;
+                if(RegCreateKeyExW(HKEY_CURRENT_USER, APP_PATHS_BAK, 0, nullptr, 0, KEY_WRITE, nullptr, &hBak,
+                                   nullptr) == ERROR_SUCCESS)
+                {
+                    RegSetValueExW(hBak, nullptr, 0, REG_SZ, (const BYTE *)appPath,
+                                   (DWORD)((wcslen(appPath) + 1) * sizeof(wchar_t)));
+                    RegCloseKey(hBak);
+                }
+
+                // Delete the original key to disable Store Notepad
+                RegDeleteTreeW(HKEY_CURRENT_USER, APP_PATHS_KEY);
+            }
+        }
+
         if(!RelaunchElevated(L"/register"))
         {
-            CenteredMessageBox(hwndOwner, L"Failed to obtain administrator privileges.", L"Nanopad",
-                               MB_OK | MB_ICONERROR);
+            // Declining the UAC prompt is a deliberate choice, not an error --
+            // stay silent. Only report a genuine failure to elevate.
+            if(interactive && GetLastError() != ERROR_CANCELLED)
+                CenteredMessageBox(hwndOwner, L"Failed to obtain administrator privileges.", L"Nanopad",
+                                   MB_OK | MB_ICONERROR);
             return false;
         }
-        // Check if it worked
+
+        // The elevated worker saved the original IFEO state to nanopad.ini.
+        // Reload it so this process won't overwrite the backup when it exits.
+        settings.Load();
         return IsReplacing();
     }
 
-    // We are elevated -- do the registry work
+    // Elevated worker -- do the privileged registry work.
     wchar_t exePath[MAX_PATH];
     if(!GetExePath(exePath, MAX_PATH))
         return false;
@@ -179,59 +184,65 @@ bool NotepadReplace::Replace(HWND hwndOwner, Settings &settings)
     return true;
 }
 
-bool NotepadReplace::Restore(HWND hwndOwner, Settings &settings)
+bool NotepadReplace::Restore(HWND hwndOwner, Settings &settings, bool interactive)
 {
-    int result = CenteredMessageBox(hwndOwner,
-                                    L"This will restore the original Notepad.\n\n"
-                                    L"Requires administrator privileges.\n\n"
-                                    L"Continue?",
-                                    L"Restore Notepad", MB_YESNO | MB_ICONQUESTION);
-    if(result != IDYES)
-        return false;
+    // No up-front confirmation: the user toggled the "Replace Notepad" menu item
+    // off deliberately, and the UAC prompt is the real gate.
 
-    // Restore Store Notepad's App Paths redirect if we backed it up
-    {
-        static constexpr const wchar_t *APP_PATHS_KEY =
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe";
-        static constexpr const wchar_t *APP_PATHS_BAK =
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe.nanopad-backup";
-
-        HKEY hBak;
-        if(RegOpenKeyExW(HKEY_CURRENT_USER, APP_PATHS_BAK, 0, KEY_READ, &hBak) == ERROR_SUCCESS)
-        {
-            wchar_t appPath[MAX_PATH] = {};
-            DWORD size                = sizeof(appPath);
-            RegQueryValueExW(hBak, nullptr, nullptr, nullptr, (BYTE *)appPath, &size);
-            RegCloseKey(hBak);
-
-            if(appPath[0])
-            {
-                HKEY hDst;
-                if(RegCreateKeyExW(HKEY_CURRENT_USER, APP_PATHS_KEY, 0, nullptr, 0, KEY_WRITE, nullptr, &hDst,
-                                   nullptr) == ERROR_SUCCESS)
-                {
-                    RegSetValueExW(hDst, nullptr, 0, REG_SZ, (const BYTE *)appPath,
-                                   (DWORD)((wcslen(appPath) + 1) * sizeof(wchar_t)));
-                    RegCloseKey(hDst);
-                }
-            }
-
-            RegDeleteTreeW(HKEY_CURRENT_USER, APP_PATHS_BAK);
-        }
-    }
-
+    // As with Replace, the HKCU work and elevation request belong to the
+    // unelevated process; the elevated worker only restores the HKLM state.
     if(!IsElevated())
     {
+        // Restore Store Notepad's App Paths redirect if we backed it up
+        {
+            static constexpr const wchar_t *APP_PATHS_KEY =
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe";
+            static constexpr const wchar_t *APP_PATHS_BAK =
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\notepad.exe.nanopad-backup";
+
+            HKEY hBak;
+            if(RegOpenKeyExW(HKEY_CURRENT_USER, APP_PATHS_BAK, 0, KEY_READ, &hBak) == ERROR_SUCCESS)
+            {
+                wchar_t appPath[MAX_PATH] = {};
+                DWORD size                = sizeof(appPath);
+                RegQueryValueExW(hBak, nullptr, nullptr, nullptr, (BYTE *)appPath, &size);
+                RegCloseKey(hBak);
+
+                if(appPath[0])
+                {
+                    HKEY hDst;
+                    if(RegCreateKeyExW(HKEY_CURRENT_USER, APP_PATHS_KEY, 0, nullptr, 0, KEY_WRITE, nullptr, &hDst,
+                                       nullptr) == ERROR_SUCCESS)
+                    {
+                        RegSetValueExW(hDst, nullptr, 0, REG_SZ, (const BYTE *)appPath,
+                                       (DWORD)((wcslen(appPath) + 1) * sizeof(wchar_t)));
+                        RegCloseKey(hDst);
+                    }
+                }
+
+                RegDeleteTreeW(HKEY_CURRENT_USER, APP_PATHS_BAK);
+            }
+        }
+
         if(!RelaunchElevated(L"/unregister"))
         {
-            CenteredMessageBox(hwndOwner, L"Failed to obtain administrator privileges.", L"Nanopad",
-                               MB_OK | MB_ICONERROR);
+            // Declining the UAC prompt is a deliberate choice, not an error.
+            if(interactive && GetLastError() != ERROR_CANCELLED)
+                CenteredMessageBox(hwndOwner, L"Failed to obtain administrator privileges.", L"Nanopad",
+                                   MB_OK | MB_ICONERROR);
             return false;
         }
+
+        // The elevated worker cleared the saved original IFEO state. Mirror that
+        // here so this process won't rewrite the stale backup when it exits.
+        settings.originalDebugger[0]     = L'\0';
+        settings.originalDebuggerLoaded  = false;
+        settings.originalUseFilterLoaded = false;
+        settings.Save();
         return !IsReplacing();
     }
 
-    // We are elevated -- restore registry
+    // Elevated worker -- restore registry
     HKEY hKey;
     if(RegOpenKeyExW(HKEY_LOCAL_MACHINE, IFEO_KEY, 0, KEY_WRITE, &hKey) != ERROR_SUCCESS)
         return false;

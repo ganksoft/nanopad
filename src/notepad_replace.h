@@ -9,11 +9,13 @@ class NotepadReplace
     // Check if Nanopad is currently the registered Notepad replacement
     static bool IsReplacing();
 
-    // Register as Notepad replacement (requires admin)
-    static bool Replace(HWND hwndOwner, Settings &settings);
+    // Register as Notepad replacement (requires admin). interactive=false runs
+    // silently with no prompts -- used by the elevated /register relaunch.
+    static bool Replace(HWND hwndOwner, Settings &settings, bool interactive = true);
 
-    // Restore original Notepad (requires admin)
-    static bool Restore(HWND hwndOwner, Settings &settings);
+    // Restore original Notepad (requires admin). interactive=false runs silently
+    // with no prompts -- used by the elevated /unregister relaunch.
+    static bool Restore(HWND hwndOwner, Settings &settings, bool interactive = true);
 
     // Register/unregister in "Open with" for common text file extensions (HKCU, no admin)
     static bool RegisterOpenWith();

@@ -1,38 +1,9 @@
 #include "settings.h"
+#include "pathutil.h"
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <memory>
-
-void Settings::ResolveIniPath()
-{
-    if(m_iniPath[0])
-        return;
-
-    wchar_t modulePath[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
-
-    // Resolve symlinks (e.g. WinGet Links dir -> actual Packages dir)
-    HANDLE hFile = CreateFileW(modulePath, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
-                               FILE_ATTRIBUTE_NORMAL, nullptr);
-    if(hFile != INVALID_HANDLE_VALUE)
-    {
-        DWORD len = GetFinalPathNameByHandleW(hFile, m_iniPath, MAX_PATH, FILE_NAME_NORMALIZED);
-        CloseHandle(hFile);
-
-        // GetFinalPathNameByHandle returns \\?\ prefix -- skip it
-        if(len > 4 && wcsncmp(m_iniPath, L"\\\\?\\", 4) == 0)
-            wmemmove(m_iniPath, m_iniPath + 4, len - 4 + 1);
-    }
-
-    // Fall back to module path if resolution failed
-    if(!m_iniPath[0])
-        wcscpy_s(m_iniPath, modulePath);
-
-    wchar_t *lastSlash = wcsrchr(m_iniPath, L'\\');
-    if(lastSlash)
-        wcscpy_s(lastSlash + 1, MAX_PATH - (lastSlash + 1 - m_iniPath), L"nanopad.ini");
-}
 
 int Settings::ParseInt(const wchar_t *value, int def)
 {
@@ -146,10 +117,11 @@ void Settings::ParseLine(const wchar_t *line)
 
 void Settings::Load()
 {
-    ResolveIniPath();
+    wchar_t iniPath[MAX_PATH];
+    PathUtil::GetPortableFilePath(L"nanopad.ini", iniPath);
 
     HANDLE hFile =
-        CreateFileW(m_iniPath, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CreateFileW(iniPath, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if(hFile == INVALID_HANDLE_VALUE)
         return;
 
@@ -189,7 +161,8 @@ void Settings::Load()
 
 void Settings::Save()
 {
-    ResolveIniPath();
+    wchar_t iniPath[MAX_PATH];
+    PathUtil::GetPortableFilePath(L"nanopad.ini", iniPath);
 
     wchar_t buf[2048];
     int pos = 0;
@@ -232,7 +205,7 @@ void Settings::Save()
     auto utf8   = std::make_unique<char[]>(utf8Len);
     WideCharToMultiByte(CP_UTF8, 0, buf, pos, utf8.get(), utf8Len, nullptr, nullptr);
 
-    HANDLE hFile = CreateFileW(m_iniPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE hFile = CreateFileW(iniPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if(hFile != INVALID_HANDLE_VALUE)
     {
         DWORD written;
