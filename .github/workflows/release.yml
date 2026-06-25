@@ -118,6 +118,22 @@ jobs:
           ${{ steps.dist.outputs.ARM64_ZIP_HASH }}  Nanopad-${{ steps.version.outputs.VERSION }}-arm64.zip
           ```
 
+    - name: Sync winget-pkgs fork with upstream
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+      run: |
+        # winget-releaser (komac) branches off our fork's default branch, so a
+        # stale fork makes the PR step fail with "Ref cannot be created". Fast-
+        # forward the fork to microsoft/winget-pkgs first via the same API the
+        # "Sync fork" button uses. Best-effort: warn but don't block the release.
+        try {
+          $result = gh api --method POST repos/BrianPeek/winget-pkgs/merge-upstream -f branch=master 2>&1
+          Write-Host "Fork synced: $result"
+        } catch {
+          Write-Warning "Fork sync failed (continuing): $_"
+        }
+
     - name: Publish to winget
       uses: vedantmgoyal9/winget-releaser@v2
       with:
