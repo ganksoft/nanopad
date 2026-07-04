@@ -1,8 +1,8 @@
 # Nanopad
 
-[![CI](https://github.com/BrianPeek/Nanopad/actions/workflows/ci.yml/badge.svg)](https://github.com/BrianPeek/Nanopad/actions)
-[![Release](https://img.shields.io/github/v/release/BrianPeek/Nanopad)](https://github.com/BrianPeek/Nanopad/releases/latest)
-[![License](https://img.shields.io/github/license/BrianPeek/Nanopad)](LICENSE)
+[![CI](https://github.com/ganksoft/nanopad/actions/workflows/ci.yml/badge.svg)](https://github.com/ganksoft/nanopad/actions)
+[![Release](https://img.shields.io/github/v/release/ganksoft/nanopad)](https://github.com/ganksoft/nanopad/releases/latest)
+[![License](https://img.shields.io/github/license/ganksoft/nanopad)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 
 A simple, portable Win32 text editor in the spirit of classic Windows Notepad.
