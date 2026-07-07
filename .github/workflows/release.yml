@@ -140,4 +140,5 @@ jobs:
         identifier: Ganksoft.Nanopad
         version: ${{ steps.version.outputs.VERSION }}
         installers-regex: '\.zip$'
+        fork-user: BrianPeek
         token: ${{ secrets.WINGET_TOKEN }}
