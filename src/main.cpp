@@ -51,9 +51,16 @@ static HANDLE g_hFileWatch                = INVALID_HANDLE_VALUE;
 // g_recoverySpawn: this instance exists only to recover (/recover); if there is
 //   nothing left to claim it should exit quietly instead of showing a window.
 // g_recoveryClaimed: set once a session has been restored into this window.
+// g_hasFileArg: this launch was given an explicit file to open (command line
+//   or shell), as opposed to a plain launch. Such a launch already has its
+//   own purpose, so it skips the orphan scan below -- popping up an unrelated
+//   recovered session in a second window right as this one opens (or fails to
+//   open) its own file would be confusing. Orphans are still picked up by the
+//   next plain launch.
 static bool g_recoveryRelaunch = false;
 static bool g_recoverySpawn    = false;
 static bool g_recoveryClaimed  = false;
+static bool g_hasFileArg       = false;
 
 struct FileStamp
 {
@@ -129,6 +136,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
     // recovery relaunch so it restores a session into this window.
     if(Recovery::LaunchedByRestart(pCmdLine))
         g_recoveryRelaunch = true;
+
+    g_hasFileArg = pCmdLine && pCmdLine[0] && !g_recoveryRelaunch && !Recovery::LaunchedByRestart(pCmdLine);
 
     WNDCLASSEXW wc   = {};
     wc.cbSize        = sizeof(wc);
@@ -618,12 +627,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 if(Recovery::HasOrphans())
                     Recovery::LaunchRecoveryInstance();
             }
-            else if(Recovery::HasOrphans())
+            else if(!g_hasFileArg && Recovery::HasOrphans())
             {
-                // Normal launch with orphaned sessions present (e.g. after a
+                // Plain launch with orphaned sessions present (e.g. after a
                 // crash or power loss where Windows did not relaunch us). Restore
                 // them into their own separate windows rather than hijacking this
-                // one, which the user opened for their own purpose.
+                // one. Skipped when this launch was given its own file to open --
+                // see g_hasFileArg.
                 Recovery::LaunchRecoveryInstance();
             }
 

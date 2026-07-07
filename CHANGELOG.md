@@ -4,6 +4,11 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [1.2.1] - 2026-07-07
+
+### Fixed
+- Opening a file from the command line no longer triggers an unrelated crash-recovery window to pop up alongside it, whether the open succeeds or fails. Crash recovery still runs normally on a plain launch (no file argument).
+
 ## [1.2.0] - 2026-06-25
 
 ### Added
