@@ -164,8 +164,17 @@ void Editor::SetFont(HFONT font)
 
 void Editor::ToggleWordWrap()
 {
-    m_wordWrap = !m_wordWrap;
-    RecreateControl();
+    SetWordWrap(!m_wordWrap);
+}
+
+// Safe to call before Create(); the control only needs rebuilding once it exists.
+void Editor::SetWordWrap(bool wrap)
+{
+    if(wrap == m_wordWrap)
+        return;
+    m_wordWrap = wrap;
+    if(m_hwndEdit)
+        RecreateControl();
 }
 
 // Preserve text, selection, and font when toggling word wrap

@@ -585,6 +585,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             if(hdc)
                 ReleaseDC(hwnd, hdc);
 
+            g_editor.SetWordWrap(g_settings.wordWrap);
             g_editor.Create(hwnd, g_hInst);
             g_statusBar.Create(hwnd, g_hInst);
             g_statusBar.SetDpi(g_currentDpi);
@@ -875,6 +876,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     HMENU hMenu = GetMenu(hwnd);
                     CheckMenuItem(hMenu, IDM_FORMAT_WORDWRAP, g_editor.IsWordWrap() ? MF_CHECKED : MF_UNCHECKED);
                     SendMessage(hwnd, WM_SIZE, 0, 0);
+                    g_settings.wordWrap = g_editor.IsWordWrap();
+                    g_settings.Save();
                     break;
                 }
                 case IDM_FORMAT_FONT:

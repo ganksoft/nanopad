@@ -30,6 +30,7 @@ class Editor
     }
 
     void ToggleWordWrap();
+    void SetWordWrap(bool wrap);
     bool IsWordWrap() const
     {
         return m_wordWrap;

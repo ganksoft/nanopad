@@ -1,9 +1,84 @@
 #include "settings.h"
 #include "pathutil.h"
+#include <cstdarg>
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <memory>
+
+namespace
+{
+enum class FieldType
+{
+    Long,
+    UInt,
+    Dword,
+    Byte,
+    Bool,
+    String,
+    FontPoints // lfHeight in memory, point size in the file
+};
+
+struct Field
+{
+    const wchar_t *section;
+    const wchar_t *key;
+    FieldType type;
+    void *ptr;
+    int def;            // used when the value is empty; buffer size in wchar_t for String
+    bool *loaded;       // set when the key is read, optional
+    const bool *saveIf; // row is only written when this is true, optional
+};
+
+int GetScreenDpi()
+{
+    HDC hdc = GetDC(nullptr);
+    int dpi = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
+    if(hdc)
+        ReleaseDC(nullptr, hdc);
+    return dpi;
+}
+
+// Returns false instead of truncating so a partial file is never written.
+bool Append(wchar_t *buf, int cch, int &pos, const wchar_t *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    int n = _vsnwprintf_s(buf + pos, cch - pos, _TRUNCATE, fmt, args);
+    va_end(args);
+    if(n < 0)
+        return false;
+    pos += n;
+    return true;
+}
+} // namespace
+
+// The table is rebuilt per call so the pointers bind to this instance.
+template <typename F> void Settings::ForEachField(F fn)
+{
+    // clang-format off
+    Field fields[] = {
+        {L"Font",           L"FontFace",          FieldType::String,     font.lfFaceName,                          LF_FACESIZE,       &fontLoaded,              nullptr},
+        {L"Font",           L"FontSize",          FieldType::FontPoints, &font.lfHeight,                           11,                &fontLoaded,              nullptr},
+        {L"Font",           L"FontWeight",        FieldType::Long,       &font.lfWeight,                           FW_NORMAL,         &fontLoaded,              nullptr},
+        {L"Font",           L"FontItalic",        FieldType::Byte,       &font.lfItalic,                           0,                 nullptr,                  nullptr},
+        {L"Font",           L"FontCharSet",       FieldType::Byte,       &font.lfCharSet,                          DEFAULT_CHARSET,   nullptr,                  nullptr},
+        {L"Font",           L"FontQuality",       FieldType::Byte,       &font.lfQuality,                          CLEARTYPE_QUALITY, nullptr,                  nullptr},
+        {L"Theme",          L"ThemeMode",         FieldType::Dword,      &themeMode,                               0,                 &themeModeLoaded,         nullptr},
+        {L"Editor",         L"WordWrap",          FieldType::Bool,       &wordWrap,                                0,                 nullptr,                  nullptr},
+        {L"Window",         L"WindowLeft",        FieldType::Long,       &windowPlacement.rcNormalPosition.left,   0,                 &windowPlacementLoaded,   nullptr},
+        {L"Window",         L"WindowTop",         FieldType::Long,       &windowPlacement.rcNormalPosition.top,    0,                 &windowPlacementLoaded,   nullptr},
+        {L"Window",         L"WindowRight",       FieldType::Long,       &windowPlacement.rcNormalPosition.right,  0,                 nullptr,                  nullptr},
+        {L"Window",         L"WindowBottom",      FieldType::Long,       &windowPlacement.rcNormalPosition.bottom, 0,                 nullptr,                  nullptr},
+        {L"Window",         L"WindowShowCmd",     FieldType::UInt,       &windowPlacement.showCmd,                 SW_SHOWNORMAL,     nullptr,                  nullptr},
+        {L"NotepadReplace", L"OriginalDebugger",  FieldType::String,     originalDebugger,                         MAX_PATH,          &originalDebuggerLoaded,  &originalDebuggerLoaded},
+        {L"NotepadReplace", L"OriginalUseFilter", FieldType::Dword,      &originalUseFilter,                       0,                 &originalUseFilterLoaded, &originalDebuggerLoaded},
+    };
+    // clang-format on
+
+    for(Field &f : fields)
+        fn(f);
+}
 
 int Settings::ParseInt(const wchar_t *value, int def)
 {
@@ -39,80 +114,40 @@ void Settings::ParseLine(const wchar_t *line)
     while(*val == L' ' || *val == L'\t')
         val++;
 
-    // Font settings
-    if(wcscmp(key, L"FontFace") == 0)
-    {
-        wcsncpy_s(font.lfFaceName, val, LF_FACESIZE - 1);
-        fontLoaded = true;
-    }
-    else if(wcscmp(key, L"FontSize") == 0)
-    {
-        // FontSize is in points -- convert to lfHeight using screen DPI
-        int pts = ParseInt(val, 11);
-        HDC hdc = GetDC(nullptr);
-        int dpi = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
-        if(hdc)
-            ReleaseDC(nullptr, hdc);
-        font.lfHeight = -MulDiv(pts, dpi, 72);
-        fontLoaded    = true;
-    }
-    else if(wcscmp(key, L"FontWeight") == 0)
-    {
-        font.lfWeight = ParseInt(val, FW_NORMAL);
-        fontLoaded    = true;
-    }
-    else if(wcscmp(key, L"FontItalic") == 0)
-    {
-        font.lfItalic = (BYTE)ParseInt(val, 0);
-    }
-    else if(wcscmp(key, L"FontCharSet") == 0)
-    {
-        font.lfCharSet = (BYTE)ParseInt(val, DEFAULT_CHARSET);
-    }
-    else if(wcscmp(key, L"FontQuality") == 0)
-    {
-        font.lfQuality = (BYTE)ParseInt(val, CLEARTYPE_QUALITY);
-    }
-    // Theme
-    else if(wcscmp(key, L"ThemeMode") == 0)
-    {
-        themeMode       = (DWORD)ParseInt(val, 0);
-        themeModeLoaded = true;
-    }
-    // Window placement
-    else if(wcscmp(key, L"WindowLeft") == 0)
-    {
-        windowPlacement.rcNormalPosition.left = ParseInt(val, 0);
-        windowPlacementLoaded                 = true;
-    }
-    else if(wcscmp(key, L"WindowTop") == 0)
-    {
-        windowPlacement.rcNormalPosition.top = ParseInt(val, 0);
-        windowPlacementLoaded                = true;
-    }
-    else if(wcscmp(key, L"WindowRight") == 0)
-    {
-        windowPlacement.rcNormalPosition.right = ParseInt(val, 0);
-    }
-    else if(wcscmp(key, L"WindowBottom") == 0)
-    {
-        windowPlacement.rcNormalPosition.bottom = ParseInt(val, 0);
-    }
-    else if(wcscmp(key, L"WindowShowCmd") == 0)
-    {
-        windowPlacement.showCmd = (UINT)ParseInt(val, SW_SHOWNORMAL);
-    }
-    // Notepad replacement
-    else if(wcscmp(key, L"OriginalDebugger") == 0)
-    {
-        wcsncpy_s(originalDebugger, val, MAX_PATH - 1);
-        originalDebuggerLoaded = true;
-    }
-    else if(wcscmp(key, L"OriginalUseFilter") == 0)
-    {
-        originalUseFilter       = (DWORD)ParseInt(val, 0);
-        originalUseFilterLoaded = true;
-    }
+    ForEachField(
+        [&](Field &f)
+        {
+            if(wcscmp(key, f.key) != 0)
+                return;
+
+            switch(f.type)
+            {
+                case FieldType::Long:
+                    *(LONG *)f.ptr = ParseInt(val, f.def);
+                    break;
+                case FieldType::UInt:
+                    *(UINT *)f.ptr = (UINT)ParseInt(val, f.def);
+                    break;
+                case FieldType::Dword:
+                    *(DWORD *)f.ptr = (DWORD)ParseInt(val, f.def);
+                    break;
+                case FieldType::Byte:
+                    *(BYTE *)f.ptr = (BYTE)ParseInt(val, f.def);
+                    break;
+                case FieldType::Bool:
+                    *(bool *)f.ptr = ParseInt(val, f.def) != 0;
+                    break;
+                case FieldType::String:
+                    wcsncpy_s((wchar_t *)f.ptr, f.def, val, _TRUNCATE);
+                    break;
+                case FieldType::FontPoints:
+                    *(LONG *)f.ptr = -MulDiv(ParseInt(val, f.def), GetScreenDpi(), 72);
+                    break;
+            }
+
+            if(f.loaded)
+                *f.loaded = true;
+        });
 }
 
 void Settings::Load()
@@ -165,40 +200,55 @@ void Settings::Save()
     PathUtil::GetPortableFilePath(L"nanopad.ini", iniPath);
 
     wchar_t buf[2048];
-    int pos = 0;
+    int pos                = 0;
+    bool ok                = true;
+    const wchar_t *section = nullptr;
 
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"[Font]\r\n");
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontFace=%s\r\n", font.lfFaceName);
+    ForEachField(
+        [&](Field &f)
+        {
+            if(!ok || (f.saveIf && !*f.saveIf))
+                return;
 
-    // Convert lfHeight to point size for human readability
-    HDC hdc = GetDC(nullptr);
-    int dpi = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
-    if(hdc)
-        ReleaseDC(nullptr, hdc);
-    int pointSize = MulDiv(font.lfHeight < 0 ? -font.lfHeight : font.lfHeight, 72, dpi);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontSize=%d\r\n", pointSize);
+            if(!section || wcscmp(section, f.section) != 0)
+            {
+                ok      = Append(buf, _countof(buf), pos, section ? L"\r\n[%s]\r\n" : L"[%s]\r\n", f.section);
+                section = f.section;
+            }
 
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontWeight=%d\r\n", font.lfWeight);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontItalic=%d\r\n", font.lfItalic);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontCharSet=%d\r\n", font.lfCharSet);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"FontQuality=%d\r\n", font.lfQuality);
+            switch(f.type)
+            {
+                case FieldType::Long:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%ld\r\n", f.key, *(LONG *)f.ptr);
+                    break;
+                case FieldType::UInt:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%u\r\n", f.key, *(UINT *)f.ptr);
+                    break;
+                case FieldType::Dword:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%lu\r\n", f.key, *(DWORD *)f.ptr);
+                    break;
+                case FieldType::Byte:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%d\r\n", f.key, *(BYTE *)f.ptr);
+                    break;
+                case FieldType::Bool:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%d\r\n", f.key, *(bool *)f.ptr ? 1 : 0);
+                    break;
+                case FieldType::String:
+                    ok = ok && Append(buf, _countof(buf), pos, L"%s=%s\r\n", f.key, (const wchar_t *)f.ptr);
+                    break;
+                case FieldType::FontPoints:
+                {
+                    // Stored as a point size for human readability
+                    LONG height = *(LONG *)f.ptr;
+                    int points  = MulDiv(height < 0 ? -height : height, 72, GetScreenDpi());
+                    ok          = ok && Append(buf, _countof(buf), pos, L"%s=%d\r\n", f.key, points);
+                    break;
+                }
+            }
+        });
 
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"\r\n[Theme]\r\n");
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"ThemeMode=%u\r\n", themeMode);
-
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"\r\n[Window]\r\n");
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"WindowLeft=%d\r\n", windowPlacement.rcNormalPosition.left);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"WindowTop=%d\r\n", windowPlacement.rcNormalPosition.top);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"WindowRight=%d\r\n", windowPlacement.rcNormalPosition.right);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"WindowBottom=%d\r\n", windowPlacement.rcNormalPosition.bottom);
-    pos += swprintf_s(buf + pos, _countof(buf) - pos, L"WindowShowCmd=%u\r\n", windowPlacement.showCmd);
-
-    if(originalDebuggerLoaded)
-    {
-        pos += swprintf_s(buf + pos, _countof(buf) - pos, L"\r\n[NotepadReplace]\r\n");
-        pos += swprintf_s(buf + pos, _countof(buf) - pos, L"OriginalDebugger=%s\r\n", originalDebugger);
-        pos += swprintf_s(buf + pos, _countof(buf) - pos, L"OriginalUseFilter=%u\r\n", originalUseFilter);
-    }
+    if(!ok)
+        return;
 
     // Convert to UTF-8
     int utf8Len = WideCharToMultiByte(CP_UTF8, 0, buf, pos, nullptr, 0, nullptr, nullptr);

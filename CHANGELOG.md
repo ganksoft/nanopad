@@ -4,6 +4,11 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+- Word wrap setting is saved to `nanopad.ini` and restored on startup.
+
 ## [1.3.0] - 2026-08-18
 
 ### Added

@@ -14,6 +14,9 @@ class Settings
     DWORD themeMode      = 0;
     bool themeModeLoaded = false;
 
+    // Editor
+    bool wordWrap = false;
+
     // Window placement
     WINDOWPLACEMENT windowPlacement = {};
     bool windowPlacementLoaded      = false;
@@ -28,6 +31,7 @@ class Settings
     void Save();
 
   private:
+    template <typename F> void ForEachField(F fn);
     void ParseLine(const wchar_t *line);
     static int ParseInt(const wchar_t *value, int def);
 };

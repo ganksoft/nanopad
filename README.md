@@ -92,6 +92,7 @@ Output: `bin\Release\nanopad.exe`
 Stored in `nanopad.ini` next to the executable (portable — no registry writes):
 - Font face, size, weight, italic, charset, quality
 - Theme mode (System / Light / Dark)
+- Word wrap on/off
 - Window position, size, and state (normal/maximized)
 - Original Notepad debugger value (for safe restore after Replace Notepad)
 
