@@ -4,6 +4,15 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [1.3.2] - 2026-10-15
+
+### Changed
+- Edit and View menus are reorganized to better match Notepad. Select All moved to the bottom of the Edit menu, and the zoom commands moved into a View > Zoom submenu.
+
+### Fixed
+- Printing now wraps lines that are wider than the page at word boundaries instead of cutting them off at the right edge.
+- Print margins are now a true 1 inch from the edge of the paper on all sides. Previously they were measured from the printer's printable area, and the right margin was ignored.
+
 ## [1.3.1] - 2026-10-14
 
 ### Added
