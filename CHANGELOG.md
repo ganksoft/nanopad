@@ -4,6 +4,11 @@ All notable user-facing changes to Nanopad will be documented in this file.
 
 This project follows a simple changelog format inspired by Keep a Changelog.
 
+## [Unreleased]
+
+### Fixed
+- Tab characters now print as tab stops matching the editor instead of taking up no space.
+
 ## [1.3.2] - 2026-10-15
 
 ### Changed

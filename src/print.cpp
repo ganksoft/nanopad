@@ -30,12 +30,42 @@ static bool IsBreakChar(wchar_t c)
     return c == L' ' || c == L'	';
 }
 
-// Returns how many chars of p (n > 0) to print on one line of the given pixel width
-static int WrapSegment(HDC hdc, const wchar_t *p, int n, int width)
+// Like GetTextExtentExPointW's fit count, but expands tabs to multiples of tabWidth
+static int FitChars(HDC hdc, const wchar_t *p, int n, int width, int tabWidth)
 {
-    int fit = 0;
-    SIZE sz;
-    if(!GetTextExtentExPointW(hdc, p, n, width, &fit, nullptr, &sz) || fit >= n)
+    int x = 0;
+    int i = 0;
+    while(i < n)
+    {
+        if(p[i] == L'\t')
+        {
+            x = (x / tabWidth + 1) * tabWidth;
+            if(x > width)
+                return i;
+            i++;
+            continue;
+        }
+
+        int runLen = 0;
+        while(i + runLen < n && p[i + runLen] != L'\t')
+            runLen++;
+        int fit = 0;
+        SIZE sz;
+        if(!GetTextExtentExPointW(hdc, p + i, runLen, width - x, &fit, nullptr, &sz))
+            return n;
+        if(fit < runLen)
+            return i + fit;
+        x += sz.cx;
+        i += runLen;
+    }
+    return n;
+}
+
+// Returns how many chars of p (n > 0) to print on one line of the given pixel width
+static int WrapSegment(HDC hdc, const wchar_t *p, int n, int width, int tabWidth)
+{
+    int fit = FitChars(hdc, p, n, width, tabWidth);
+    if(fit >= n)
         return n;
 
     // Let whitespace at the break hang past the margin instead of starting the next line
@@ -57,7 +87,7 @@ static int WrapSegment(HDC hdc, const wchar_t *p, int n, int width)
     return fit;
 }
 
-static int CountPrintedLines(HDC hdc, const std::wstring &text, int width)
+static int CountPrintedLines(HDC hdc, const std::wstring &text, int width, int tabWidth)
 {
     int count         = 0;
     size_t textOffset = 0;
@@ -67,7 +97,7 @@ static int CountPrintedLines(HDC hdc, const std::wstring &text, int width)
     {
         do
         {
-            int seg = lineLen > 0 ? WrapSegment(hdc, linePtr, lineLen, width) : 0;
+            int seg = lineLen > 0 ? WrapSegment(hdc, linePtr, lineLen, width, tabWidth) : 0;
             linePtr += seg;
             lineLen -= seg;
             count++;
@@ -155,7 +185,12 @@ bool Printer::Print(HWND hwndOwner, const std::wstring &text, const std::wstring
     if(linesPerPage < 1)
         linesPerPage = 1;
 
-    int totalLines = CountPrintedLines(hdc, text, printWidth);
+    // Match the EDIT control's default tab stops: every 8 average character widths
+    int tabWidth = tm.tmAveCharWidth * 8;
+    if(tabWidth < 1)
+        tabWidth = 1;
+
+    int totalLines = CountPrintedLines(hdc, text, printWidth, tabWidth);
     int totalPages = (totalLines + linesPerPage - 1) / linesPerPage;
     if(totalPages < 1)
         totalPages = 1;
@@ -219,9 +254,9 @@ bool Printer::Print(HWND hwndOwner, const std::wstring &text, const std::wstring
                     break;
                 inLine = true;
             }
-            int seg = lineLen > 0 ? WrapSegment(hdc, linePtr, lineLen, printWidth) : 0;
+            int seg = lineLen > 0 ? WrapSegment(hdc, linePtr, lineLen, printWidth, tabWidth) : 0;
             if(seg > 0)
-                TextOutW(hdc, marginLeft, y, linePtr, seg);
+                TabbedTextOutW(hdc, marginLeft, y, linePtr, seg, 1, &tabWidth, marginLeft);
             linePtr += seg;
             lineLen -= seg;
             if(lineLen == 0)
