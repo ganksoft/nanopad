@@ -6,6 +6,8 @@ This project follows a simple changelog format inspired by Keep a Changelog.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-04
+
 ### Fixed
 - Tab characters now print as tab stops matching the editor instead of taking up no space.
 
